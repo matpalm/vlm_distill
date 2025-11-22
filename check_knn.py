@@ -4,6 +4,8 @@ from sklearn.metrics import confusion_matrix, classification_report
 import argparse
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("--train", type=str, required=True)
+parser.add_argument("--test", type=str, required=True)
 parser.add_argument("--embedding-npy", type=str, required=True)
 opts = parser.parse_args()
 print("opts", opts)
@@ -23,8 +25,8 @@ def load_x_y(split: str):
     return x, y
 
 
-x_train, y_train = load_x_y("train")
-x_test, y_test = load_x_y("test")
+x_train, y_train = load_x_y(opts.train)
+x_test, y_test = load_x_y(opts.test)
 
 knn = KNeighborsClassifier(n_neighbors=5, metric="cosine")
 knn.fit(x_train, y_train)

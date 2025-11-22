@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 source hf
-for S in train test; do
+for S in train_knn test_knn; do
  for L in cat dog; do
   python3 vlm_describe.py \
    --manifest data/$S/$L/manifest.tsv \
@@ -15,4 +15,7 @@ done
 
 # knn performance
 source jax
-python3 check_knn.py --embedding-npy p1/clip_embed_text.npy
+python3 check_knn.py \
+ --train train_knn \
+ --test test_knn \
+ --embedding-npy p1/clip_embed_text.npy
