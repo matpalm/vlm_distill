@@ -31,9 +31,8 @@ for L in Cat Dog; do
 done
 ```
 
-build manifests for various parts of experiments
+build manifests for various parts of experiments. #egs => # of imgs for each of cat and dog
 
-#egs for each of cat dog in splits.
 split      egs
 train_knn  100
 test_knn   100

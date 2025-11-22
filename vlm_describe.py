@@ -2,7 +2,7 @@ import argparse
 import tqdm
 import numpy as np
 
-from models import VLM
+from pretrained_models import VLM
 from util import parse_manifest, ensure_dir_exists_for_file
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)

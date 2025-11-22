@@ -2,7 +2,7 @@ from sentence_transformers import SentenceTransformer, util
 import numpy as np
 from PIL import Image
 
-from models import VLM
+from pretrained_models import VLM
 from util import timer
 
 # create CLM And clip wrappers

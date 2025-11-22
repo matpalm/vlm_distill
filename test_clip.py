@@ -1,6 +1,6 @@
 import numpy as np
 
-from models import Clip
+from pretrained_models import Clip
 
 clip = Clip()
 

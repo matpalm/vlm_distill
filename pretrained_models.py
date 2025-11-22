@@ -89,3 +89,4 @@ class Clip(object):
     def encode_text(self, text_or_list: str):
         with timer("embed text"):
             return self.model.encode(text_or_list)
+

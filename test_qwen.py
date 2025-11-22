@@ -1,4 +1,4 @@
-from models import VLM
+from pretrained_models import VLM
 
 vlm = VLM()
 result = vlm.prompt(
