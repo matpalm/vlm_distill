@@ -26,7 +26,10 @@ class VLM(object):
                 "Qwen/Qwen2.5-VL-7B-Instruct"
             )
 
-    def describe(self, img_path: str):
+    def prompt(self, prompt: str, img_path: str):
+
+        # TODD: should be able to run prompt and cache before providing img
+
         with timer("process message"):
             messages = [
                 {
@@ -34,7 +37,7 @@ class VLM(object):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Describe the following image using a short paragraph.",
+                            "text": prompt,
                         },
                         {"type": "image", "image": img_path},
                     ],
@@ -66,9 +69,4 @@ class VLM(object):
                 clean_up_tokenization_spaces=False,
             )
 
-        return output_text
-
-
-class Clip(object):
-    def __init__(self):
-        pass
+        return output_text[0]
