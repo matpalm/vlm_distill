@@ -1,5 +1,6 @@
 import time
 from contextlib import contextmanager
+import os
 
 @contextmanager
 def timer(label:str ="Block"):
@@ -21,4 +22,17 @@ def timer(label:str ="Block"):
 
 
 def parse_manifest(manifest: str):
-    return [f.strip() for f in open(opts.manifest, "r").readlines()]
+    return [f.strip() for f in open(manifest, "r").readlines()]
+
+
+def ensure_dir_exists(d):
+    if not os.path.exists(d):
+        try:
+            os.makedirs(d)
+        except FileExistsError:
+            # can happen as race condition
+            pass
+
+
+def ensure_dir_exists_for_file(f):
+    ensure_dir_exists(os.path.dirname(f))

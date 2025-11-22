@@ -35,35 +35,29 @@ what is the zero shot performance from `clip(img)` or `clip(text_desc(VLM(img)))
 
 ### clip on imgs
 
-3s for the clip embeddings of the images
+CLIP-ViT-B-16; 86M params for img encoder, 63M params for text encoder
+
+* run clip on the imgs from train/test cat/dog to make `clip_embed_img.npy` files
+* check knn performance on these zero shot embeddings
 
 ```
-# scripts/run_clip_embed_img_on_cats_dogs.sh
-for S in train test; do
- for L in cat dog; do
-  python3 clip_embed_img.py \
-   --manifest data/$S/$L/manifest.tsv \
-   --npy-output data/$S/$L/clip_embed_img.npy
- done
-done
-```
+sh scripts/baseline_clip_img.sh
+
+              precision    recall  f1-score   support
+         cat       0.99      1.00      1.00       100
+         dog       1.00      0.99      0.99       100
+    accuracy                           0.99       200
+   macro avg       1.00      0.99      0.99       200
+weighted avg       1.00      0.99      0.99       200
 
 ```
 
 ### vlm description -> clip on description text
 
-~4m for the vlm descriptions; + 3s for the clip embeddings
+* run vlm on train/test cat/dog to get descriptions ( `vlm_describe_prompt_1.txt` )
+* run clip on these text descriptions to get embeddings ( `clip_embed_vlm_desc_1.npy` )
+* check knn performance on these zero shot embeddings
 
 ```
-for S in train test; do
- for L in cat dog; do
-  python3 vlm_describe.py \
-   --manifest data/$S/$L/manifest.tsv \
-   --prompt 'describe this image in a sentence' \
-   --txt-output data/$S/$L/vlm_describe_prompt_1.txt
-  python3 clip_embed_text.py \
-   --text data/$S/$L/vlm_describe_prompt_1.txt \
-   --npy-output data/$S/$L/clip_embed_vlm_desc_1.npy
- done
-done
+sh scripts/baseline_vlm_desc_clip_text.sh
 ```

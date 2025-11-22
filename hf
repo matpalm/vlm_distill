@@ -1,0 +1,2 @@
+deactivate 2>/dev/null
+source .hf/bin/activate
