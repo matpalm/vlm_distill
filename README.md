@@ -22,12 +22,21 @@ what is the zero shot performance from `clip(img)` or `clip(text_desc(VLM(img)))
 
 ## data
 
-400 images; 100 each of
+resize everything to 640x640 ( just for simpler modelling later )
 
-* train, cat
-* train, dog
-* validate, cat
-* validate, dog
+```
+for L in Cat Dog; do
+ find /data/kaggle_cats_and_dogs/PetImages/$L/ -type f > /tmp/manifest
+ python3 resize_imgs.py --manifest /tmp/manifest --output-dir data/$L/ --hw 640
+done
+```
+
+build manifests for various parts of experiments
+
+#egs for each of cat dog in splits.
+split      egs
+train_knn  100
+test_knn   100
 
 ```
 sh scripts/build_manifests.sh

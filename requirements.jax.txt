@@ -8,3 +8,4 @@ pillow-heif==1.1.1
 pandas==2.2.3
 jupyterlab==4.2.0
 scikit-learn==1.7.2
+tqdm==4.67.1
