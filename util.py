@@ -18,3 +18,7 @@ def timer(label:str ="Block"):
         end = time.perf_counter()
         elapsed = end - start
         # print(f"[{label}] took {elapsed:.4f}s")
+
+
+def parse_manifest(manifest: str):
+    return [f.strip() for f in open(opts.manifest, "r").readlines()]

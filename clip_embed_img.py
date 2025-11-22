@@ -14,7 +14,7 @@ print("opts", opts)
 
 clip = Clip()
 embeddings = []
-fnames = [f.split("\t")[0] for f in open(opts.manifest, "r").readlines()]
+fnames = [f.strip() for f in open(opts.manifest, "r").readlines()]
 for fname in tqdm.tqdm(fnames):
     embeddings.append(clip.encode_img_fname(fname))
 np.save(opts.npy_output, np.stack(embeddings))
