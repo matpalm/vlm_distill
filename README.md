@@ -46,18 +46,20 @@ sh scripts/baseline_clip_img.sh
               precision    recall  f1-score   support
          cat       0.99      1.00      1.00       100
          dog       1.00      0.99      0.99       100
-    accuracy                           0.99       200
-   macro avg       1.00      0.99      0.99       200
-weighted avg       1.00      0.99      0.99       200
-
 ```
 
 ### vlm description -> clip on description text
 
-* run vlm on train/test cat/dog to get descriptions ( `vlm_describe_prompt_1.txt` )
-* run clip on these text descriptions to get embeddings ( `clip_embed_vlm_desc_1.npy` )
+use generic prompt 'describe this image in a sentence`
+
+* run vlm on train/test cat/dog to get descriptions ( `p1/descriptions.txt` )
+* run clip on these text descriptions to get embeddings ( `p1/clip_embed_text.npy` )
 * check knn performance on these zero shot embeddings
 
 ```
 sh scripts/baseline_vlm_desc_clip_text.sh
+
+              precision    recall  f1-score   support
+         cat       0.96      0.99      0.98       100
+         dog       0.99      0.96      0.97       100
 ```
