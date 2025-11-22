@@ -11,7 +11,8 @@ from transformers import (
 )
 from qwen_vl_utils import process_vision_info
 from util import timer
-
+from PIL import Image
+from functools import lru_cache
 
 class VLM(object):
     def __init__(self):
@@ -70,3 +71,21 @@ class VLM(object):
             )
 
         return output_text[0]
+
+
+class Clip(object):
+
+    def __init__(self):
+        # Load CLIP model
+        with timer("load model"):
+            self.model = SentenceTransformer("clip-ViT-B-16")
+
+    @lru_cache(128)
+    def encode_img_fname(self, fname: str):
+        with timer("embed img"):
+            return self.model.encode(Image.open(fname))
+
+    @lru_cache(128)
+    def encode_text(self, text_or_list: str):
+        with timer("embed text"):
+            return self.model.encode(text_or_list)

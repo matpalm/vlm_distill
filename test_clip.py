@@ -1,32 +1,31 @@
-import os
-
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
-
-
-from sentence_transformers import SentenceTransformer, util
 import numpy as np
-from util import timer
-from PIL import Image
 
-# Load CLIP model
-with timer("load model"):
-    model = SentenceTransformer("clip-ViT-B-16")
+from models import Clip
 
-# Encode an image:
-with timer("embed img"):
-    img_emb = model.encode(Image.open("imgs/Selection_073.png"))
+clip = Clip()
 
-# Encode text descriptions
-with timer("embed text"):
-    text_emb = model.encode(
+
+def l2_norm(e):
+    return e / np.linalg.norm(e, axis=-1, keepdims=True)
+
+
+img_embeddings = l2_norm(
+    np.stack(
         [
-            "Two dogs in the snow",
-            "A modular synth",
-            "A cat on a table",
-            "A picture of London at night",
+            clip.encode_img_fname("PetImages/Cat/0.jpg"),
+            clip.encode_img_fname("PetImages/Dog/0.jpg"),
         ]
     )
+)
 
-# Compute cosine similarities
-cos_scores = util.cos_sim(img_emb, text_emb)
-print(cos_scores)
+desc_embeddings = l2_norm(
+    np.stack(
+        [
+            clip.encode_text("an image of a cat"),
+            clip.encode_text("an image of a dog"),
+        ]
+    )
+)
+
+# sims
+print(np.dot(img_embeddings, desc_embeddings.T))

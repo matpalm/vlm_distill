@@ -17,4 +17,4 @@ def timer(label:str ="Block"):
     finally:
         end = time.perf_counter()
         elapsed = end - start
-        print(f"[{label}] took {elapsed:.4f}s")
+        # print(f"[{label}] took {elapsed:.4f}s")
