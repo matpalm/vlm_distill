@@ -16,7 +16,11 @@ source .jax/bin/activate
 uv pip install -r requirements.jax.txt
 ```
 
-# manifest
+# baseline zero shot
+
+what is the zero shot performance from `clip(img)` or `clip(text_desc(VLM(img)))` ?
+
+## data
 
 400 images; 100 each of
 
@@ -29,11 +33,7 @@ uv pip install -r requirements.jax.txt
 sh scripts/build_manifests.sh
 ```
 
-## baseline zero shot
-
-what is the zero shot performance from `clip(img)` or `clip(text_desc(VLM(img)))` ?
-
-### clip on imgs
+## clip on imgs
 
 CLIP-ViT-B-16; 86M params for img encoder, 63M params for text encoder
 
@@ -48,9 +48,11 @@ sh scripts/baseline_clip_img.sh
          dog       1.00      0.99      0.99       100
 ```
 
-### vlm description -> clip on description text
+## vlm description -> clip on description text
 
 use generic prompt 'describe this image in a sentence`
+
+use `Qwen2.5-VL-7B-Instruct` ( 7B params )
 
 * run vlm on train/test cat/dog to get descriptions ( `p1/descriptions.txt` )
 * run clip on these text descriptions to get embeddings ( `p1/clip_embed_text.npy` )
@@ -63,3 +65,15 @@ sh scripts/baseline_vlm_desc_clip_text.sh
          cat       0.96      0.99      0.98       100
          dog       0.99      0.96      0.97       100
 ```
+
+# distilled features from VLM
+
+* same test set as KNN; 100 dog and 100 cat
+
+* v1 baseline training classifier, without teacher; with 5K vs 10K vs 25K imgs
+
+* train classifier, with teacher using
+ * embeddings from clip(img) vs clip(vlm_desc(img))
+ * on 5K vs 10K vs 25K cats & dogs
+ * with (masked) 0, 1, 10, 100K extra images from open images
+
