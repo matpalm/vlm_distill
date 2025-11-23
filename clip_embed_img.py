@@ -16,8 +16,11 @@ print("opts", opts)
 ensure_dir_exists_for_file(opts.npy_output)
 
 clip = Clip()
-embeddings = []
 fnames = parse_manifest(opts.manifest)
-for fname in tqdm.tqdm(fnames):
-    embeddings.append(clip.encode_img_fname(fname))
-np.save(opts.npy_output, np.stack(embeddings))
+
+# pre alloc to ensure we have mem
+embeddings = np.empty((len(fnames), clip.embedding_dim()), dtype=np.float32)
+
+for i, fname in enumerate(tqdm.tqdm(fnames)):
+    embeddings[i] = clip.encode_img_fname(fname)
+np.save(opts.npy_output, embeddings)

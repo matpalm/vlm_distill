@@ -90,3 +90,5 @@ class Clip(object):
         with timer("embed text"):
             return self.model.encode(text_or_list)
 
+    def embedding_dim(self):
+        return 512
