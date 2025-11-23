@@ -1,43 +1,104 @@
 import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["KERAS_BACKEND"] = "jax"
 
 import numpy as np
+import jax.numpy as jnp
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.losses import MSE
 
 from data import create_img_embedding_ds, create_img_label_ds
 from models import create_embedding_model
 from check_knn import check
 
+import argparse
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("--dataset", type=str, required=True)
+parser.add_argument("--img-hw", type=int, default=640)
+parser.add_argument("--base-num-filters", type=int, default=8)
+parser.add_argument("--embedding-type", type=str, required=True)
+parser.add_argument("--learning-rate", type=float, default=1e-3)
+parser.add_argument("--epochs", type=int, default=100)  # note: early stopping
+parser.add_argument("--batch-size", type=int, default=16)
+parser.add_argument("--mse-loss-weight", type=float, default=0.0)
+parser.add_argument("--sim-loss-weight", type=float, default=1.0)
+
+opts = parser.parse_args()
+print(opts)
+
 # create datasets for training the keras model
 # (X, y) are (img, embeddings_from_whatever_pretrained_model )
 
 train_ds = create_img_embedding_ds(
-    split="cat_dog_1k/train", img_hw=640, embedding_type="clip_embed_img.npy"
+    split=f"{opts.dataset}/train",
+    img_hw=opts.img_hw,
+    embedding_type=opts.embedding_type,
 )
 train_ds = train_ds.cache()
-train_ds = train_ds.batch(16)
+train_ds = train_ds.batch(opts.batch_size)
 validate_ds = create_img_embedding_ds(
-    split="cat_dog_1k/validate", img_hw=640, embedding_type="clip_embed_img.npy"
+    split=f"{opts.dataset}/validate",
+    img_hw=opts.img_hw,
+    embedding_type=opts.embedding_type,
 )
 validate_ds = validate_ds.cache()
 validate_ds = validate_ds.batch(16)
 
+for _x, y in train_ds:
+    target_embedding_dim = y.shape[-1]
+    break
+
 # build and train keras model
+# note: not bothering with projection for now
 
 model = create_embedding_model(
-    img_hw=640,
-    num_filters=8,
+    img_hw=opts.img_hw,
+    num_filters=opts.base_num_filters,
     depth=6,
     act_fn="silu",
-    embedding_dim=512,
+    embedding_dim=target_embedding_dim,
     projection_dim=None,
-    include_vit_blocks=False,
+    include_vit_blocks=True,
     include_squeeze_excite=False,
 )
 print(model.summary())
-model.compile(optimizer=Adam(learning_rate=1e-4), loss="mse")
-model.fit(train_ds, validation_data=validate_ds, epochs=10)
+
+
+def cosine_sim_loss(y_true, y_pred):
+    y_true = y_true / jnp.linalg.norm(y_true, axis=-1, keepdims=True)
+    y_pred = y_pred / jnp.linalg.norm(y_pred, axis=-1, keepdims=True)
+    sims = 1 - jnp.einsum("BE,BE->B", y_true, y_pred)
+    return jnp.mean(sims)
+
+
+def combined_loss(y_true, y_pred):
+    loss = 0
+    if opts.mse_loss_weight > 0:
+        loss += MSE(y_true, y_pred) * opts.mse_loss_weight
+    if opts.sim_loss_weight > 0:
+        loss += cosine_sim_loss(y_true, y_pred) * opts.sim_loss_weight
+    return loss
+
+
+model.compile(optimizer=Adam(learning_rate=opts.learning_rate), loss=combined_loss)
+
+callbacks = [
+    EarlyStopping(
+        monitor="val_loss",
+        patience=5,
+        min_delta=1e-4,
+        verbose=0,
+        mode="auto",
+        restore_best_weights=True,
+    )
+]
+
+model.fit(
+    train_ds, validation_data=validate_ds, epochs=opts.epochs, callbacks=callbacks
+)
 
 # use keras model to generate embeddings for knn train and test datasets
 # (X, y) are ( img, true labels )
@@ -46,7 +107,7 @@ model.fit(train_ds, validation_data=validate_ds, epochs=10)
 def generate_embeddings_from_model(split: str):
     embeddings = []
     ys = []
-    for x, y in create_img_label_ds(split=split, img_hw=640).batch(16):
+    for x, y in create_img_label_ds(split=split, img_hw=opts.img_hw).batch(16):
         embeddings.append(model(x))
         ys.append(y)
     return np.concatenate(embeddings), np.concatenate(ys)

@@ -2,20 +2,51 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.models import Model
 
 
+def conv_batchnorm_act_block(
+    y, num_filters: int, act_fn: str, use_seperable: bool, name: str
+):
+    if use_seperable:
+        y = SeparableConv2D(
+            filters=num_filters,
+            kernel_size=3,
+            strides=2,
+            activation=None,
+            use_bias=False,
+            padding="same",
+            depth_multiplier=1,
+            name=f"{name}_conv",
+        )(y)
+    else:
+        y = Conv2D(
+            filters=num_filters,
+            kernel_size=3,
+            strides=2,
+            activation=None,
+            use_bias=False,
+            padding="same",
+            name=f"{name}_conv",
+        )(y)
+    y = BatchNormalization(name=f"{name}_bn")(y)
+    y = Activation(act_fn, name=f"{name}_act")(y)
+    return y
+
+
 def projection_mlp(y, prj_dim: int, name: str):
     num_units = y.shape[-1]
     y = Dense(
         units=num_units,
         kernel_initializer="he_normal",
-        activation="silu",
         name=f"{name}_prj1",
     )(y)
+    y = BatchNormalization(name=f"{name}_bn")(y)
+    y = Activation("silu", name=f"{name}_act")(y)
     y = Dense(
         units=prj_dim,
         kernel_initializer="glorot_uniform",
         activation=None,
         name=f"{name}_prj2",
     )(y)
+    y = Dropout(0.1, name=f"{name}_dropout")(y)
     return y
 
 
@@ -37,9 +68,13 @@ def mobile_vit_block(y, prj_dim: int, name: str):
     y = projection_conv(filters=prj_dim, name=f"{name}_prj1")(y)
     _b, h, w, f = y.shape
     y = Reshape((h * w, f), name=f"{name}_fold")(y)
-    y = MultiHeadAttention(key_dim=32, num_heads=4, name=f"{name}_mha")(y, y)
+    y0 = LayerNormalization()(y)
+    y = MultiHeadAttention(key_dim=32, num_heads=4, name=f"{name}_mha")(y0, y0)
+    y = Add(name=f"{name}_mha_residual")([y0, y])
     y = Reshape((h, w, f), name=f"{name}_unfold")(y)
+    y0 = LayerNormalization()(y)
     y = projection_conv(filters=feature_dim, name=f"{name}_prj2")(y)
+    y = Add(name=f"{name}_prj_residual")([y0, y])
     return Add(name=f"{name}_residual")([inp, y])
 
 
@@ -77,27 +112,38 @@ def create_embedding_model(
 ):
     inps = Input(shape=(img_hw, img_hw, 3))
     y = inps
-    for b in range(depth):
-        y = Conv2D(
-            filters=num_filters,
-            kernel_size=3,
-            strides=2,
-            activation=act_fn,
-            padding="same",
-            name=f"b{b}_conv",
-        )(y)
+
+    # main conv stack
+    for b in range(depth - 1):
+        use_seperable = b >= 3
+        y = conv_batchnorm_act_block(
+            y, num_filters, act_fn, use_seperable, name=f"b{b}"
+        )
         if include_squeeze_excite:
             y = squeeze_excite_block(y, name=f"b{b}_se")
         num_filters *= 2
+
+    # ViT mixer
     if include_vit_blocks:
-        y = mobile_vit_block(y, prj_dim=256, name="vit")
+        y = mobile_vit_block(y, prj_dim=num_filters // 2, name="vit")
+
+    # final ( post mixer ) conv
+    y = conv_batchnorm_act_block(
+        y, num_filters, act_fn, use_seperable=True, name=f"b{b+1}"
+    )
+
     y = GlobalAveragePooling2D()(y)
-    embeddings = Dense(
-        units=embedding_dim,
-        kernel_initializer="glorot_uniform",
-        activation=None,
-        name="embedding",
-    )(y)
+
+    # final wo heads; task head ( for classifier ) and
+
+    embeddings = projection_mlp(
+        y,
+        prj_dim=embedding_dim,
+        name="model_embedding",
+    )
+
+    # we only use projection if we are intending to repurpose the model embedding for
+    # another task.
     if projection_dim is not None:
         embeddings = projection_mlp(
             embeddings, prj_dim=projection_dim, name="emb_projection"

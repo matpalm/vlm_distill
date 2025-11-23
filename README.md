@@ -40,12 +40,12 @@ build manifests for various parts of experiments. #egs => # of imgs for each of 
 split                 #egs
 knn/train             100
 knn/test              100
-cat_dog_1K/train      1000
-cat_dog_1K/validate   100
-cat_dog_1K/test       100
-cat_dog_10K/train     10000
-cat_dog_10K/validate  100
-cat_dog_10K/test      100
+cat_dog_1k/train      1000
+cat_dog_1k/validate   100
+cat_dog_1k/test       100
+cat_dog_10k/train     10000
+cat_dog_10k/validate  100
+cat_dog_10k/test      100
 ```
 
 ```
