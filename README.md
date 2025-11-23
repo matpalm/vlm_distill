@@ -105,3 +105,11 @@ where
  specific prompt => "describe the features of this image in the context of deciding if it is a cat, or a dog, or something else."
 
 TODOS
+
+## including open images data
+
+
+```
+find /data/open_images/original/train_0 -type f -name \*jpg | head -n100000 > open_images.orig.100k.manifest
+time python3 resize_imgs.py --manifest open_images.orig.100k.manifest --output-dir data/open_images/ --hw 640
+```

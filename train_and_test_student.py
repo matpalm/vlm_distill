@@ -6,12 +6,14 @@ os.environ["KERAS_BACKEND"] = "jax"
 import numpy as np
 import jax.numpy as jnp
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from tensorflow.keras.losses import MSE
+import json, pickle
 
 from data import create_img_embedding_ds, create_img_label_ds
 from models import create_embedding_model
 from check_knn import check
+from util import DTS, ensure_dir_exists
 
 import argparse
 
@@ -19,15 +21,26 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 parser.add_argument("--dataset", type=str, required=True)
 parser.add_argument("--img-hw", type=int, default=640)
 parser.add_argument("--base-num-filters", type=int, default=8)
-parser.add_argument("--embedding-type", type=str, required=True)
+parser.add_argument(
+    "--embedding-type",
+    type=str,
+    required=True,
+    help="which pretrained embedding to use as target",
+)
 parser.add_argument("--learning-rate", type=float, default=1e-3)
 parser.add_argument("--epochs", type=int, default=100)  # note: early stopping
-parser.add_argument("--batch-size", type=int, default=16)
-parser.add_argument("--mse-loss-weight", type=float, default=0.0)
-parser.add_argument("--sim-loss-weight", type=float, default=1.0)
+parser.add_argument("--batch-size", type=int, default=64)
+parser.add_argument("--mse-loss-weight", type=float, default=0.5)
+parser.add_argument("--sim-loss-weight", type=float, default=0.5)
 
 opts = parser.parse_args()
 print(opts)
+
+run = DTS()
+print("run", run)
+ensure_dir_exists(f"runs/{run}")
+
+json.dump(vars(opts), open(f"runs/{run}/opts.json", "w"))
 
 # create datasets for training the keras model
 # (X, y) are (img, embeddings_from_whatever_pretrained_model )
@@ -38,7 +51,9 @@ train_ds = create_img_embedding_ds(
     embedding_type=opts.embedding_type,
 )
 train_ds = train_ds.cache()
+train_ds = train_ds.shuffle(opts.batch_size * 10)
 train_ds = train_ds.batch(opts.batch_size)
+
 validate_ds = create_img_embedding_ds(
     split=f"{opts.dataset}/validate",
     img_hw=opts.img_hw,
@@ -64,8 +79,14 @@ model = create_embedding_model(
     include_vit_blocks=True,
     include_squeeze_excite=False,
 )
-print(model.summary())
 
+
+def _to_file(s):
+    with open(f"runs/{run}/model_summary", "w") as f:
+        print(s, file=f)
+
+
+model.summary(print_fn=_to_file)
 
 def cosine_sim_loss(y_true, y_pred):
     y_true = y_true / jnp.linalg.norm(y_true, axis=-1, keepdims=True)
@@ -93,16 +114,24 @@ callbacks = [
         verbose=0,
         mode="auto",
         restore_best_weights=True,
-    )
+    ),
+    TensorBoard(
+        log_dir=f"tb/{run}",
+        histogram_freq=0,
+        write_graph=False,
+        write_images=False,
+        write_steps_per_second=False,
+        update_freq="epoch",
+    ),
 ]
 
-model.fit(
+history = model.fit(
     train_ds, validation_data=validate_ds, epochs=opts.epochs, callbacks=callbacks
 )
+pickle.dump(history, open(f"runs/{run}/history.pkl", "wb"))
 
 # use keras model to generate embeddings for knn train and test datasets
 # (X, y) are ( img, true labels )
-
 
 def generate_embeddings_from_model(split: str):
     embeddings = []
@@ -116,4 +145,8 @@ def generate_embeddings_from_model(split: str):
 # recall; y_ are the true values
 x_train, y_train = generate_embeddings_from_model("knn/train")
 x_test, y_test = generate_embeddings_from_model("knn/test")
-check(x_train, y_train, x_test, y_test)
+report = check(x_train, y_train, x_test, y_test)
+print(report)
+json.dump(report, open(f"runs/{run}/report", "w"))
+
+print(run)

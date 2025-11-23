@@ -6,13 +6,10 @@ from data import load_embeddings_x_y, CLASSES
 
 
 def check(x_train, y_train, x_test, y_test):
-    print("y_train", y_train)
-    print("y_test", y_test)
     knn = KNeighborsClassifier(n_neighbors=5, metric="cosine")
     knn.fit(x_train, y_train)
     y_pred = knn.predict(x_test)
-    print("y_pred", y_pred)
-    print(classification_report(y_test, y_pred, target_names=CLASSES))
+    return classification_report(y_test, y_pred, target_names=CLASSES, output_dict=True)
 
 
 if __name__ == "__main__":
