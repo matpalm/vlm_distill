@@ -3,7 +3,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import confusion_matrix, classification_report
 import argparse
 
-from data import LABELS, LABEL_TO_IDX, load_embeddings_x_y
+from data import load_embeddings_x_y, CLASSES
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--train", type=str, required=True)
@@ -20,4 +20,4 @@ knn.fit(x_train, y_train)
 
 y_pred = knn.predict(x_test)
 
-print(classification_report(y_test, y_pred, target_names=LABELS))
+print(classification_report(y_test, y_pred, target_names=CLASSES))

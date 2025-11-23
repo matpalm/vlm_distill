@@ -1,16 +1,14 @@
 #!/usr/bin/env bash
 
-# manifest -> embedding.npy
+# run images directly through clip
 source hf
 for S in train_knn test_knn; do
- for L in cat dog; do
-  python3 clip_embed_img.py \
-   --manifest data/$S/$L/manifest.tsv \
-   --npy-output data/$S/$L/clip_embed_img.npy
- done
+ python3 clip_embed_img.py \
+  --manifest data/$S/manifest.tsv \
+  --npy-output data/$S/clip_embed_img.npy
 done
 
-# knn performance
+# check knn zero shot performance
 source jax
 python3 check_knn.py \
  --train train_knn \

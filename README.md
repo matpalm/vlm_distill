@@ -27,8 +27,10 @@ resize everything to 640x640 ( just for simpler modelling later )
 ```
 for L in Cat Dog; do
  find /data/kaggle_cats_and_dogs/PetImages/$L/ -type f > /tmp/manifest
- python3 resize_imgs.py --manifest /tmp/manifest --output-dir data/$L/ --hw 640
+ python3 resize_imgs.py --manifest /tmp/manifest --output-dir data/pet_images/$L/ --hw 640
 done
+mv data/pet_images/Cat data/pet_images/cat
+mv data/pet_images/Dog data/pet_images/dog
 ```
 
 build manifests for various parts of experiments. #egs => # of imgs for each of cat and dog
@@ -38,7 +40,7 @@ train_knn  100
 test_knn   100
 
 ```
-sh scripts/build_manifests.sh
+./scripts/build_manifests.sh
 ```
 
 ## clip on imgs
