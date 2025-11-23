@@ -15,9 +15,13 @@ print("opts", opts)
 x_train, y_train = load_embeddings_x_y(opts.train, opts.embedding_npy)
 x_test, y_test = load_embeddings_x_y(opts.test, opts.embedding_npy)
 
+print("y_train", y_train)
+print("y_test", y_test)
+
 knn = KNeighborsClassifier(n_neighbors=5, metric="cosine")
 knn.fit(x_train, y_train)
 
 y_pred = knn.predict(x_test)
+print("y_pred", y_pred)
 
 print(classification_report(y_test, y_pred, target_names=CLASSES))

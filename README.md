@@ -34,21 +34,31 @@ mv data/pet_images/Dog data/pet_images/dog
 ```
 
 build manifests for various parts of experiments. #egs => # of imgs for each of cat and dog
-
-split      egs
-train_knn  100
-test_knn   100
+( includes building a corresponding y_true.npy )
 
 ```
-./scripts/build_manifests.sh
+split                 #egs
+knn/train             100
+knn/test              100
+cat_dog_1K/train      1000
+cat_dog_1K/validate   100
+cat_dog_1K/test       100
+cat_dog_10K/train     10000
+cat_dog_10K/validate  100
+cat_dog_10K/test      100
 ```
 
-## clip on imgs
+```
+python build_manifests_and_labels.py
+```
+
+## zero shot performance of clip on cats and dogs imgs
 
 CLIP-ViT-B-16; 86M params for img encoder, 63M params for text encoder
 
 * run clip on the imgs from train/test cat/dog to make `clip_embed_img.npy` files
 * check knn performance on these zero shot embeddings
+* CLIP runs at ~85 imgs / sec
 
 ```
 sh scripts/baseline_clip_img.sh
@@ -58,7 +68,7 @@ sh scripts/baseline_clip_img.sh
          dog       1.00      0.99      0.99       100
 ```
 
-## vlm description -> clip on description text
+## zero shot performance of clip on VLM descriptions of cats and dogs imgs
 
 use generic prompt 'describe this image in a sentence`
 
@@ -67,6 +77,7 @@ use `Qwen2.5-VL-7B-Instruct` ( 7B params )
 * run vlm on train/test cat/dog to get descriptions ( `p1/descriptions.txt` )
 * run clip on these text descriptions to get embeddings ( `p1/clip_embed_text.npy` )
 * check knn performance on these zero shot embeddings
+* VLM runs at about ~1.5imgs / sec
 
 ```
 sh scripts/baseline_vlm_desc_clip_text.sh
@@ -78,12 +89,19 @@ sh scripts/baseline_vlm_desc_clip_text.sh
 
 # distilled features from VLM
 
-* same test set as KNN; 100 dog and 100 cat
+## how small a model can we train to replicate the zero shot clip embeddings?
 
-* v1 baseline training classifier, without teacher; with 5K vs 10K vs 25K imgs
+* train a model to replicate embeddings from clip on `cat_dog_1K` images
+* use that model to embed `train_knn`
+* train KNN and check performance on `test_knn`
 
 * train classifier, with teacher using
- * embeddings from clip(img) vs clip(vlm_desc(img))
- * on 5K vs 10K vs 25K cats & dogs
+ * embeddings from clip(img) vs clip(vlm_desc(img)) ( generic prompt ) vs clip(vlm_desc(img)) ( specific prompt )
+ * on increasing sizes of cat vs dog
  * with (masked) 0, 1, 10, 100K extra images from open images
 
+where
+ generic prompt => "describe this image in a sentence."
+ specific prompt => "describe the features of this image in the context of deciding if it is a cat, or a dog, or something else."
+
+TODOS
