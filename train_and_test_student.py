@@ -15,6 +15,11 @@ from models import create_embedding_model
 from check_knn import check
 from util import DTS, ensure_dir_exists
 
+run = DTS()
+print("run", run)
+ensure_dir_exists(f"runs/{run}")
+
+
 import argparse
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -37,9 +42,6 @@ parser.add_argument("--sim-loss-weight", type=float, default=0.5)
 opts = parser.parse_args()
 print(opts)
 
-run = DTS()
-print("run", run)
-ensure_dir_exists(f"runs/{run}")
 
 json.dump(vars(opts), open(f"runs/{run}/opts.json", "w"))
 
@@ -64,6 +66,7 @@ try:
     )
     validate_ds = validate_ds.batch(16)
 except FileNotFoundError:
+    # not all datasets, e.g. open_images, even have a validation set
     validate_ds = None
 
 # build and train keras model

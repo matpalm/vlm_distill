@@ -28,17 +28,17 @@ for D in 1k; do
 done
 
 python3 vlm_describe.py \
- --manifest data/open_images/1k/manifest.txt \
+ --manifest data/open_images/1k/train/manifest.txt \
  --prompt 'describe this image in a sentence' \
- --txt-output data/open_images/1k/p1/descriptions.txt
+ --txt-output data/open_images/1k/train/p1/descriptions.txt
 
 python3 vlm_describe.py \
- --manifest data/open_images/1k/manifest.txt \
+ --manifest data/open_images/1k/train/manifest.txt \
  --prompt 'describe the primary features of this image, in a single sentence, with respect to classifying the image as a cat, or a dog, or neither.' \
- --txt-output data/open_images/1k/p2/descriptions.txt
+ --txt-output data/open_images/1k/train/p2/descriptions.txt
 
 for P in p1 p2; do
  python3 clip_embed_text.py \
-  --text data/open_images/1k/$P/descriptions.txt \
-  --npy-output data/open_images/1k/$P/clip_embed_text.npy
+  --text data/open_images/1k/train/$P/descriptions.txt \
+  --npy-output data/open_images/1k/train/$P/clip_embed_text.npy
 done

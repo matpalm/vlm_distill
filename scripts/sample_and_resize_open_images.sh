@@ -17,6 +17,6 @@ python3 resize_imgs.py --manifest /tmp/manifest.$$ --output-dir data/imgs/open_i
 # set up manifests
 
 for D in 1k 10k 100k; do
- mkdir data/open_images/$D
- find data/imgs/open_images/$D -type f -name *jpg > data/open_images/$D/manifest.txt
+ mkdir -p data/open_images/$D/train
+ find data/imgs/open_images/$D -type f -name *jpg > data/open_images/$D/train/manifest.txt
 done
