@@ -34,7 +34,7 @@ def create_img_label_ds(split: str, img_hw: int, seed: int = None):
     return tf.data.Dataset.from_generator(
         _generator,
         output_signature=(
-            tf.TensorSpec(shape=(img_hw, img_hw, 3), dtype=tf.float32),  # still uint8
+            tf.TensorSpec(shape=(img_hw, img_hw, 3), dtype=tf.float32),
             tf.TensorSpec(shape=(), dtype=tf.uint8),
         ),
     )
@@ -56,21 +56,25 @@ def create_img_embedding_ds(
         Random(seed).shuffle(idxs)
         for i in idxs:
             pil_img = Image.open(manifest[i]).convert("RGB").resize((img_hw, img_hw))
-            x = np.array(pil_img, dtype=float) / 255.0
+            x = np.array(pil_img)  # uint8
             y = embeddings[i]
             yield x, y
+
+    def convert_dtype(x, y):
+        x = tf.cast(x, dtype=tf.float32) / 255.0
+        return x, y
 
     ds = tf.data.Dataset.from_generator(
         _generator,
         output_signature=(
-            tf.TensorSpec(shape=(img_hw, img_hw, 3), dtype=tf.float32),  # still uint8
+            tf.TensorSpec(shape=(img_hw, img_hw, 3), dtype=tf.uint8),
             tf.TensorSpec(shape=(embedding_dim,), dtype=tf.float32),
         ),
     )
-
     if cache:
         cache_file = f"cache/{split}/{embedding_type}/cache_"
         ensure_dir_exists_for_file(cache_file)
         ds = ds.cache(cache_file)
+    ds = ds.map(convert_dtype)
 
     return ds, len(manifest)
