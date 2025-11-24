@@ -30,6 +30,7 @@ parser.add_argument(
 parser.add_argument("--learning-rate", type=float, default=1e-3)
 parser.add_argument("--epochs", type=int, default=100)  # note: early stopping
 parser.add_argument("--batch-size", type=int, default=64)
+parser.add_argument("--target-embedding-dim", type=int, default=512)
 parser.add_argument("--mse-loss-weight", type=float, default=0.5)
 parser.add_argument("--sim-loss-weight", type=float, default=0.5)
 
@@ -45,26 +46,25 @@ json.dump(vars(opts), open(f"runs/{run}/opts.json", "w"))
 # create datasets for training the keras model
 # (X, y) are (img, embeddings_from_whatever_pretrained_model )
 
-train_ds = create_img_embedding_ds(
+train_ds, _num_train = create_img_embedding_ds(
     split=f"{opts.dataset}/train",
     img_hw=opts.img_hw,
     embedding_type=opts.embedding_type,
+    cache=True,
 )
-train_ds = train_ds.cache()
 train_ds = train_ds.shuffle(opts.batch_size * 10)
 train_ds = train_ds.batch(opts.batch_size)
 
-validate_ds = create_img_embedding_ds(
-    split=f"{opts.dataset}/validate",
-    img_hw=opts.img_hw,
-    embedding_type=opts.embedding_type,
-)
-validate_ds = validate_ds.cache()
-validate_ds = validate_ds.batch(16)
-
-for _x, y in train_ds:
-    target_embedding_dim = y.shape[-1]
-    break
+if os.path.exists(f"{opts.dataset}/validate"):
+    validate_ds, _num_validate = create_img_embedding_ds(
+        split=f"{opts.dataset}/validate",
+        img_hw=opts.img_hw,
+        embedding_type=opts.embedding_type,
+        cache=True,
+    )
+    validate_ds = validate_ds.batch(16)
+else:
+    validate_ds = None
 
 # build and train keras model
 # note: not bothering with projection for now
@@ -74,7 +74,7 @@ model = create_embedding_model(
     num_filters=opts.base_num_filters,
     depth=6,
     act_fn="silu",
-    embedding_dim=target_embedding_dim,
+    embedding_dim=opts.target_embedding_dim,
     projection_dim=None,
     include_vit_blocks=True,
     include_squeeze_excite=False,
@@ -106,15 +106,21 @@ def combined_loss(y_true, y_pred):
 
 model.compile(optimizer=Adam(learning_rate=opts.learning_rate), loss=combined_loss)
 
-callbacks = [
-    EarlyStopping(
-        monitor="val_loss",
-        patience=5,
-        min_delta=1e-4,
-        verbose=0,
-        mode="auto",
-        restore_best_weights=True,
-    ),
+callbacks = []
+
+if validate_ds is not None:
+    callbacks.append(
+        EarlyStopping(
+            monitor="val_loss",
+            patience=5,
+            min_delta=1e-4,
+            verbose=0,
+            mode="auto",
+            restore_best_weights=True,
+        )
+    )
+
+callbacks.append(
     TensorBoard(
         log_dir=f"tb/{run}",
         histogram_freq=0,
@@ -122,8 +128,8 @@ callbacks = [
         write_images=False,
         write_steps_per_second=False,
         update_freq="epoch",
-    ),
-]
+    )
+)
 
 history = model.fit(
     train_ds, validation_data=validate_ds, epochs=opts.epochs, callbacks=callbacks

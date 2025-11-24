@@ -3,7 +3,7 @@ import tensorflow as tf
 from PIL import Image
 from random import Random
 
-from util import parse_manifest
+from util import parse_manifest, ensure_dir_exists_for_file
 
 
 CLASSES = ["cat", "dog"]
@@ -41,7 +41,7 @@ def create_img_label_ds(split: str, img_hw: int, seed: int = None):
 
 
 def create_img_embedding_ds(
-    split: str, img_hw: int, embedding_type: str, seed: int = 234
+    split: str, img_hw: int, embedding_type: str, seed: int = 234, cache: bool = False
 ):
 
     manifest = parse_manifest(f"data/{split}/manifest.txt")
@@ -51,21 +51,26 @@ def create_img_embedding_ds(
 
     assert len(manifest) == len(embeddings)
 
-    rng = Random(234)
-
     def _generator():
         idxs = list(range(len(manifest)))
-        rng.shuffle(idxs)
+        Random(seed).shuffle(idxs)
         for i in idxs:
             pil_img = Image.open(manifest[i]).convert("RGB").resize((img_hw, img_hw))
             x = np.array(pil_img, dtype=float) / 255.0
             y = embeddings[i]
             yield x, y
 
-    return tf.data.Dataset.from_generator(
+    ds = tf.data.Dataset.from_generator(
         _generator,
         output_signature=(
             tf.TensorSpec(shape=(img_hw, img_hw, 3), dtype=tf.float32),  # still uint8
             tf.TensorSpec(shape=(embedding_dim,), dtype=tf.float32),
         ),
     )
+
+    if cache:
+        cache_file = f"cache/{split}/{embedding_type}/cache_"
+        ensure_dir_exists_for_file(cache_file)
+        ds = ds.cache(cache_file)
+
+    return ds, len(manifest)
