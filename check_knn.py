@@ -26,4 +26,4 @@ if __name__ == "__main__":
     x_train, y_train = load_embeddings_x_y(opts.train, opts.embedding_npy)
     x_test, y_test = load_embeddings_x_y(opts.test, opts.embedding_npy)
 
-    check(x_train, y_train, x_test, y_test)
+    print(check(x_train, y_train, x_test, y_test))

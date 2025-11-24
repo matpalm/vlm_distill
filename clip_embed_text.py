@@ -18,6 +18,6 @@ ensure_dir_exists_for_file(opts.npy_output)
 clip = Clip()
 embeddings = []
 lines = parse_manifest(opts.text)
-for line in tqdm.tqdm(lines):
+for line in tqdm.tqdm(lines, desc="clip embed text"):
     embeddings.append(clip.encode_text(line))
 np.save(opts.npy_output, np.stack(embeddings))

@@ -25,16 +25,17 @@ what is the zero shot performance from `clip(img)` or `clip(text_desc(VLM(img)))
 resize everything to 640x640 ( just for simpler modelling later )
 
 ```
-for L in Cat Dog; do
- find /data/kaggle_cats_and_dogs/PetImages/$L/ -type f > /tmp/manifest
- python3 resize_imgs.py --manifest /tmp/manifest --output-dir data/pet_images/$L/ --hw 640
-done
-mv data/pet_images/Cat data/pet_images/cat
-mv data/pet_images/Dog data/pet_images/dog
+./scripts/resize_cats_and_dogs.sh
 ```
 
 build manifests for various parts of experiments. #egs => # of imgs for each of cat and dog
 ( includes building a corresponding y_true.npy )
+
+```
+python build_manifests_and_labels.py
+```
+
+results in distinct sets from cats and dogs
 
 ```
 split                 #egs
@@ -48,10 +49,6 @@ cat_dog_10k/validate  100
 cat_dog_10k/test      100
 ```
 
-```
-python build_manifests_and_labels.py
-```
-
 ## zero shot performance of clip on cats and dogs imgs
 
 CLIP-ViT-B-16; 86M params for img encoder, 63M params for text encoder
@@ -61,11 +58,11 @@ CLIP-ViT-B-16; 86M params for img encoder, 63M params for text encoder
 * CLIP runs at ~85 imgs / sec
 
 ```
-sh scripts/baseline_clip_img.sh
+./scripts/baseline_clip_img.sh
 
               precision    recall  f1-score   support
-         cat       0.99      1.00      1.00       100
-         dog       1.00      0.99      0.99       100
+         cat       1.00      1.00      1.00       100
+         dog       1.00      1.00      1.00       100
 ```
 
 ## zero shot performance of clip on VLM descriptions of cats and dogs imgs
@@ -80,36 +77,51 @@ use `Qwen2.5-VL-7B-Instruct` ( 7B params )
 * VLM runs at about ~1.5imgs / sec
 
 ```
-sh scripts/baseline_vlm_desc_clip_text.sh
+./scripts/baseline_vlm_desc_clip_text.sh
 
               precision    recall  f1-score   support
-         cat       0.96      0.99      0.98       100
-         dog       0.99      0.96      0.97       100
+         cat       1.00      1.00      1.00       100
+         dog       1.00      1.00      1.00       100
 ```
 
 # distilled features from VLM
 
 ## how small a model can we train to replicate the zero shot clip embeddings?
 
-* train a model to replicate embeddings from clip on `cat_dog_1K` images
-* use that model to embed `train_knn`
-* train KNN and check performance on `test_knn`
+we'll train a model on 1K ( or 10K ) images to replicate the embeddings from clip and the VLM
 
-* train classifier, with teacher using
- * embeddings from clip(img) vs clip(vlm_desc(img)) ( generic prompt ) vs clip(vlm_desc(img)) ( specific prompt )
- * on increasing sizes of cat vs dog
- * with (masked) 0, 1, 10, 100K extra images from open images
+start by embedding the cat_dog_1k and cat_dog_10k datasets imgs with clip
 
-where
- generic prompt => "describe this image in a sentence."
- specific prompt => "describe the features of this image in the context of deciding if it is a cat, or a dog, or something else."
+```
+./scripts/embed_other_imgs_clip.sh
+```
 
-TODOS
+then describe the cat_dog_1k via the VLM with two prompts, and embed those descriptions with clip
+
+first prompt is generic; "describe this image in a sentence"
+
+second prompt is more specific to this task; "describe the primary features of this image, in a single sentence,
+with respect to classifying the image as a cat, or a dog, or neither."
+
+```
+./scripts/embed_other_imgs_vlm_desc_clip_text.sh
+```
+
+this gives us 4 training sets of (img, embeddings)
+
+imgs          embeddings from
+cat_dog_1k    clip_img
+cat_dog_1k    clip_text(vlm_p1)
+cat_dog_1k    clip_text(vlm_p2)
+cat_dog_10k   clip_img
+
+we can train models to replicate these embeddings.
+after each epoch use the trained model to generate embeddings for the zero shot KNN task tested aboveclip
 
 ## including open images data
 
+sample 100K of open images and resize to 640x640 ( non squash )
 
 ```
-find /data/open_images/original/train_0 -type f -name \*jpg | head -n100000 > open_images.orig.100k.manifest
-time python3 resize_imgs.py --manifest open_images.orig.100k.manifest --output-dir data/open_images/ --hw 640
+./scripts/sample_and_resize_open_images.sh
 ```

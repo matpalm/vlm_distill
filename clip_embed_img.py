@@ -21,6 +21,6 @@ fnames = parse_manifest(opts.manifest)
 # pre alloc to ensure we have mem
 embeddings = np.empty((len(fnames), clip.embedding_dim()), dtype=np.float32)
 
-for i, fname in enumerate(tqdm.tqdm(fnames)):
+for i, fname in enumerate(tqdm.tqdm(fnames, desc="clip embed img")):
     embeddings[i] = clip.encode_img_fname(fname)
 np.save(opts.npy_output, embeddings)

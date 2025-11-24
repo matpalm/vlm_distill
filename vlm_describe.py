@@ -18,7 +18,7 @@ vlm = VLM()
 
 with open(opts.txt_output, "w") as f:
     fnames = parse_manifest(opts.manifest)
-    for fname in tqdm.tqdm(fnames):
+    for fname in tqdm.tqdm(fnames, desc="vlm desc imgs"):
         result = vlm.prompt(prompt=opts.prompt, img_path=fname)
         result = result.replace("\n", " ")  # o_O
         print(result, file=f, flush=True)

@@ -19,6 +19,7 @@ import argparse
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--dataset", type=str, required=True)
+parser.add_argument("--split", type=str, default="train")
 parser.add_argument("--img-hw", type=int, default=640)
 parser.add_argument(
     "--embedding-type",
@@ -30,12 +31,12 @@ opts = parser.parse_args()
 print(opts)
 
 train_ds, num_train = create_img_embedding_ds(
-    split=f"{opts.dataset}/train",
+    split=f"{opts.dataset}/{opts.split}",
     img_hw=opts.img_hw,
     embedding_type=opts.embedding_type,
     cache=True,
 )
 train_ds.prefetch(1)
 
-for _ in tqdm.tqdm(train_ds, total=num_train):
+for _ in tqdm.tqdm(train_ds, total=num_train, desc="priming cache"):
     pass
