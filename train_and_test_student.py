@@ -55,16 +55,13 @@ train_ds, _num_train = create_img_embedding_ds(
 train_ds = train_ds.shuffle(opts.batch_size * 10)
 train_ds = train_ds.batch(opts.batch_size)
 
-if os.path.exists(f"{opts.dataset}/validate"):
-    validate_ds, _num_validate = create_img_embedding_ds(
-        split=f"{opts.dataset}/validate",
-        img_hw=opts.img_hw,
-        embedding_type=opts.embedding_type,
-        cache=True,
-    )
-    validate_ds = validate_ds.batch(16)
-else:
-    validate_ds = None
+validate_ds, _num_validate = create_img_embedding_ds(
+    split=f"{opts.dataset}/validate",
+    img_hw=opts.img_hw,
+    embedding_type=opts.embedding_type,
+    cache=True,
+)
+validate_ds = validate_ds.batch(16)
 
 # build and train keras model
 # note: not bothering with projection for now
