@@ -4,3 +4,7 @@ imgs/
 manifest.tsv
 PetImages
 data
+cache
+runs/
+tb/
+.ipynb_checkpoints/
