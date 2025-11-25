@@ -8,6 +8,7 @@ import jax.numpy as jnp
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from tensorflow.keras.losses import MSE
+from tensorflow.keras.callbacks import Callback
 import json, pickle
 
 from data import create_img_embedding_ds, create_img_label_ds
@@ -111,18 +112,59 @@ model.compile(optimizer=Adam(learning_rate=opts.learning_rate), loss=combined_lo
 
 callbacks = []
 
-if validate_ds is not None:
-    callbacks.append(
-        EarlyStopping(
-            monitor="val_loss",
-            patience=5,
-            min_delta=1e-4,
-            verbose=0,
-            mode="auto",
-            restore_best_weights=True,
-        )
-    )
+# if validate_ds is not None:
+#     callbacks.append(
+#         EarlyStopping(
+#             monitor="val_loss",
+#             patience=5,
+#             min_delta=1e-4,
+#             verbose=0,
+#             mode="auto",
+#             restore_best_weights=True,
+#         )
+#     )
 
+
+def generate_embeddings_from_model(model, ds):
+    embeddings = []
+    ys = []
+    for x, y in ds:
+        embeddings.append(model(x))
+        ys.append(y)
+    return np.concatenate(embeddings), np.concatenate(ys)
+
+
+class ZeroShotKNNTestCallback(Callback):
+
+    def __init__(self, cb_freq: int = 1, log_fname: str = None):
+        self.knn_train = create_img_label_ds(split="knn/train", img_hw=640).batch(16)
+        self.knn_test = create_img_label_ds(split="knn/test", img_hw=640).batch(16)
+        self.cb_freq = cb_freq
+        self.log = None if log_fname is None else open(log_fname, "w")
+
+    def on_epoch_end(self, epoch, logs={}):
+        if epoch % self.cb_freq == 0:
+            x_train, y_train = generate_embeddings_from_model(
+                self.model, self.knn_train
+            )
+            x_test, y_test = generate_embeddings_from_model(self.model, self.knn_test)
+            report = check(x_train, y_train, x_test, y_test)
+            for k in ["accuracy", "macro avg", "weighted avg"]:
+                del report[k]
+            logs["mean_f1"] = (
+                report["cat"]["f1-score"] + report["dog"]["f1-score"]
+            ) / 2
+            report["epoch"] = epoch
+            if self.log:
+                print(json.dumps(report), file=self.log, flush=True)
+        return logs
+
+
+callbacks.append(
+    ZeroShotKNNTestCallback(cb_freq=2, log_fname=f"runs/{run}/knn_metrics.jsonl")
+)
+
+# last to pick up f1 info from knn test
 callbacks.append(
     TensorBoard(
         log_dir=f"tb/{run}",
