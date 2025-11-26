@@ -15,11 +15,25 @@ def load_embeddings_x_y(split: str, embedding_fname: str):
     return x, y_true
 
 
-def create_img_label_ds(split: str, img_hw: int, seed: int = None):
+def create_ds(
+    split: str,
+    img_hw: int,
+    embedding_type: str,  # if None, don't emit embedding
+    include_labels: bool,
+    seed: int = 123,
+    cache: bool = False,
+):
+    if (embedding_type is None) and (not include_labels):
+        raise Exception("need to include one of embeddings or y_labels in output")
 
     manifest = parse_manifest(f"data/{split}/manifest.txt")
-    labels = np.load(f"data/{split}/y_true.npy")
-    assert len(manifest) == len(labels)
+    if embedding_type is not None:
+        embeddings = np.load(f"data/{split}/{embedding_type}")
+        assert len(manifest) == len(embeddings)
+        embedding_dim = embeddings.shape[-1]
+    if include_labels:
+        labels = np.load(f"data/{split}/y_true.npy")
+        assert len(manifest) == len(labels)
 
     def _generator():
         idxs = list(range(len(manifest)))
@@ -27,54 +41,37 @@ def create_img_label_ds(split: str, img_hw: int, seed: int = None):
             Random(seed).shuffle(idxs)
         for i in idxs:
             pil_img = Image.open(manifest[i]).convert("RGB").resize((img_hw, img_hw))
-            x = np.array(pil_img, dtype=float) / 255.0
-            y = labels[i]
-            yield x, y
+            output = [np.array(pil_img)]  # uint8
+            if embedding_type is not None:
+                output.append(embeddings[i])
+            if include_labels:
+                output.append(labels[i])
+            yield tuple(output)
 
-    return tf.data.Dataset.from_generator(
-        _generator,
-        output_signature=(
-            tf.TensorSpec(shape=(img_hw, img_hw, 3), dtype=tf.float32),
-            tf.TensorSpec(shape=(), dtype=tf.uint8),
-        ),
-    )
-
-
-def create_img_embedding_ds(
-    split: str, img_hw: int, embedding_type: str, seed: int = 234, cache: bool = False
-):
-
-    manifest = parse_manifest(f"data/{split}/manifest.txt")
-    embeddings = np.load(f"data/{split}/{embedding_type}")
-
-    embedding_dim = embeddings.shape[-1]
-
-    assert len(manifest) == len(embeddings)
-
-    def _generator():
-        idxs = list(range(len(manifest)))
-        Random(seed).shuffle(idxs)
-        for i in idxs:
-            pil_img = Image.open(manifest[i]).convert("RGB").resize((img_hw, img_hw))
-            x = np.array(pil_img)  # uint8
-            y = embeddings[i]
-            yield x, y
-
-    def convert_dtype(x, y):
-        x = tf.cast(x, dtype=tf.float32) / 255.0
-        return x, y
+    output_signature = [tf.TensorSpec(shape=(img_hw, img_hw, 3), dtype=tf.uint8)]
+    if embedding_type is not None:
+        output_signature.append(tf.TensorSpec(shape=(embedding_dim,), dtype=tf.float32))
+    if include_labels:
+        output_signature.append(tf.TensorSpec(shape=(), dtype=tf.uint8))
 
     ds = tf.data.Dataset.from_generator(
-        _generator,
-        output_signature=(
-            tf.TensorSpec(shape=(img_hw, img_hw, 3), dtype=tf.uint8),
-            tf.TensorSpec(shape=(embedding_dim,), dtype=tf.float32),
-        ),
+        _generator, output_signature=tuple(output_signature)
     )
+
     if cache:
-        cache_file = f"cache/{split}/{embedding_type}/cache_"
+        cache_file = f"cache/{split}/{img_hw}/"
+        if embedding_type is not None:
+            cache_file += f"e_{embedding_type}/"
+        cache_file += f"labels_{include_labels}"
         ensure_dir_exists_for_file(cache_file)
         ds = ds.cache(cache_file)
+
+    def convert_dtype(*xy):
+        # xy might be x, y or x, y, y
+        xy = list(xy)
+        xy[0] = tf.cast(xy[0], dtype=tf.float32) / 255.0
+        return tuple(xy)
+
     ds = ds.map(convert_dtype)
 
     return ds, len(manifest)
