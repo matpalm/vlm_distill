@@ -3,12 +3,14 @@ import tensorflow as tf
 from PIL import Image
 from random import Random
 from tensorflow.keras.layers import RandomFlip
+import json
+from PIL import Image
 
 from util import parse_manifest, ensure_dir_exists_for_file
 
 
-CLASSES = ["cat", "dog"]
-CLASS_TO_LABEL = dict(zip(CLASSES, range(len(CLASSES))))
+# CLASSES = ["cat", "dog"]
+# CLASS_TO_LABEL = dict(zip(CLASSES, range(len(CLASSES))))
 
 def load_embeddings_x_y(split: str, embedding_fname: str):
     x = np.load(f"data/{split}/{embedding_fname}")
@@ -76,7 +78,14 @@ def create_ds(
 
     ds = ds.map(convert_dtype)
 
-    return ds, len(manifest)
+    try:
+        with open(f"data/{split}/class_to_labels.json", "r") as f:
+            classes_to_labels = json.load(f)
+    except FileNotFoundError:
+        print(f"no classes_to_labels for split=[{split}]")
+        classes_to_labels = None
+
+    return ds, len(manifest), classes_to_labels
 
 
 def ds_post_processing(
@@ -102,3 +111,10 @@ def ds_post_processing(
         ds = ds.map(flip_image)
 
     return ds
+
+
+def to_pil(a):
+    if a.dtype != float:
+        raise Exception("expected float data")
+    a = np.array(a * 255, dtype=np.uint8)
+    return Image.fromarray(a)

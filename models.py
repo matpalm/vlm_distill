@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from tensorflow.keras.layers import *
 from tensorflow.keras.models import Model
 
@@ -31,22 +33,26 @@ def conv_batchnorm_act_block(
     return y
 
 
-def projection_mlp(y, prj_dim: int, name: str):
-    num_units = y.shape[-1]
-    y = Dense(
-        units=num_units,
-        kernel_initializer="he_normal",
-        name=f"{name}_prj1",
-    )(y)
-    y = BatchNormalization(name=f"{name}_bn")(y)
-    y = Activation("silu", name=f"{name}_act")(y)
-    y = Dense(
-        units=prj_dim,
-        kernel_initializer="glorot_uniform",
-        activation=None,
-        name=f"{name}_prj2",
-    )(y)
-    y = Dropout(0.1, name=f"{name}_dropout")(y)
+def mlp(y, dims: int, name: str):
+    """simple MLP with no activation or batchnorm on last layer"""
+    last_layer_idx = len(dims) - 1
+    for i in range(len(dims)):
+        if i != last_layer_idx:
+            y = Dense(
+                units=dims[i],
+                kernel_initializer="he_normal",
+                name=f"{name}_prj{i}",
+            )(y)
+            y = BatchNormalization(name=f"{name}_bn{i}")(y)
+            y = Activation("silu", name=f"{name}_act{i}")(y)
+            y = Dropout(0.1, name=f"{name}_dropout{i}")(y)
+        else:
+            y = Dense(
+                units=dims[i],
+                kernel_initializer="glorot_uniform",
+                activation=None,
+                name=f"{name}_prj{i}",
+            )(y)
     return y
 
 
@@ -100,19 +106,19 @@ def squeeze_excite_block(y, name: str, ratio=16):
     return Add(name=f"{name}_residual")([inp, y])
 
 
-def create_embedding_model(
+def create_backbone(
     img_hw: int,
-    num_filters: int,
+    base_num_filters: int,
     depth: int,
     act_fn: str,
-    embedding_dim: int,
-    projection_dim: int,
     include_vit_blocks: bool,
     include_squeeze_excite: bool,
+    max_num_filters: int = None,
 ):
+    num_filters = base_num_filters
+
     inps = Input(shape=(img_hw, img_hw, 3))
     y = inps
-
     # main conv stack
     for b in range(depth - 1):
         use_seperable = b >= 3
@@ -122,6 +128,8 @@ def create_embedding_model(
         if include_squeeze_excite:
             y = squeeze_excite_block(y, name=f"b{b}_se")
         num_filters *= 2
+        if max_num_filters is not None:
+            num_filters = min(max_num_filters, num_filters)
 
     # ViT mixer
     if include_vit_blocks:
@@ -131,22 +139,25 @@ def create_embedding_model(
     y = conv_batchnorm_act_block(
         y, num_filters, act_fn, use_seperable=True, name=f"b{b+1}"
     )
+    y = GlobalAveragePooling2D(name="features")(y)
+    return Model(inps, y, name="backbone")
 
-    y = GlobalAveragePooling2D()(y)
 
-    # final wo heads; task head ( for classifier ) and
-
-    embeddings = projection_mlp(
-        y,
-        prj_dim=embedding_dim,
-        name="model_embedding",
+def create_classifier_head(feature_dim: int, num_classes: int):
+    inps = Input(shape=(feature_dim,))
+    logits = mlp(
+        inps,
+        dims=[feature_dim, num_classes],
+        name="logits",
     )
+    return Model(inps, logits, name="classifier")
 
-    # we only use projection if we are intending to repurpose the model embedding for
-    # another task.
-    if projection_dim is not None:
-        embeddings = projection_mlp(
-            embeddings, prj_dim=projection_dim, name="emb_projection"
-        )
 
-    return Model(inps, embeddings)
+def create_adapter_model(feature_dim: int, embedding_dim: int):
+    inps = Input(shape=(feature_dim,))
+    adapter = mlp(
+        inps,
+        dims=[feature_dim, embedding_dim],
+        name="adapter",
+    )
+    return Model(inps, logits, name="adapter")

@@ -4,6 +4,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 
 from data import load_embeddings_x_y, CLASSES
 
+raise Exception("TODO: update since model split")
 
 def check(x_train, y_train, x_test, y_test):
     knn = KNeighborsClassifier(n_neighbors=5, metric="cosine")
