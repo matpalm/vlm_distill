@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 from random import Random
+from tensorflow.keras.layers import RandomFlip
 
 from util import parse_manifest, ensure_dir_exists_for_file
 
@@ -45,14 +46,15 @@ def create_ds(
             if embedding_type is not None:
                 output.append(embeddings[i])
             if include_labels:
-                output.append(labels[i])
+                # ensure batched labeled as (B, 1) and not just (B, )
+                output.append(np.expand_dims(labels[i], axis=-1))
             yield tuple(output)
 
     output_signature = [tf.TensorSpec(shape=(img_hw, img_hw, 3), dtype=tf.uint8)]
     if embedding_type is not None:
         output_signature.append(tf.TensorSpec(shape=(embedding_dim,), dtype=tf.float32))
     if include_labels:
-        output_signature.append(tf.TensorSpec(shape=(), dtype=tf.uint8))
+        output_signature.append(tf.TensorSpec(shape=(1), dtype=tf.uint8))
 
     ds = tf.data.Dataset.from_generator(
         _generator, output_signature=tuple(output_signature)
@@ -75,3 +77,28 @@ def create_ds(
     ds = ds.map(convert_dtype)
 
     return ds, len(manifest)
+
+
+def ds_post_processing(
+    ds,
+    batch_size: int,
+    shuffle: bool = False,
+    lr_flip: bool = False,
+    drop_remainder: bool = True,
+):
+    if shuffle:
+        ds = ds.shuffle(batch_size * 10)
+
+    ds = ds.batch(batch_size, drop_remainder=drop_remainder)
+
+    if lr_flip:
+        random_flip = RandomFlip(mode="horizontal")
+
+        def flip_image(*xy):
+            xy = list(xy)
+            xy[0] = random_flip(xy[0], training=True)
+            return tuple(xy)
+
+        ds = ds.map(flip_image)
+
+    return ds
