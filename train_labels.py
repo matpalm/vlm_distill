@@ -12,7 +12,11 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import *
 
 from data import create_ds, ds_post_processing
-from models import create_backbone, create_classifier_head
+from models import (
+    create_backbone,
+    create_classifier,
+    load_backbone_from_pretrained_model,
+)
 from callbacks import EvalCallback
 from util import DTS, ensure_dir_exists
 
@@ -25,6 +29,13 @@ import argparse
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--dataset", type=str, required=True)
 parser.add_argument("--img-hw", type=int, default=640)
+parser.add_argument(
+    "--use-pretrained-backbone",
+    type=str,
+    default=None,
+    help="if set use backbone from this ckpt",
+)
+parser.add_argument("--freeze-backbone", action="store_true")
 parser.add_argument("--base-num-filters", type=int, default=8)
 parser.add_argument("--max-num-filters", type=int, default=None)
 parser.add_argument("--learning-rate", type=float, default=0.1)
@@ -62,15 +73,21 @@ val_ds, num_val, classes_to_labels = create_ds(
 val_ds = ds_post_processing(val_ds, batch_size=10, shuffle=False, lr_flip=False)
 print("|val_ds|", num_val, classes_to_labels)
 
-use_dummy_model = False
+# use_dummy_model = False
 
-if use_dummy_model:
-    inp = Input((opts.img_hw, opts.img_hw, 3))
-    y = inp
-    y = Dense(units=16, activation="relu")(y)
-    y = GlobalAveragePooling2D()(y)
-    y = Dense(units=len(classes_to_labels), activation=None)(y)
-    model = Model(inp, y)
+# if use_dummy_model:
+#     inp = Input((opts.img_hw, opts.img_hw, 3))
+#     y = inp
+#     y = Dense(units=16, activation="relu")(y)
+#     y = GlobalAveragePooling2D()(y)
+#     y = Dense(units=len(classes_to_labels), activation=None)(y)
+#     model = Model(inp, y)
+# else:
+
+if opts.use_pretrained_backbone:
+    backbone = load_backbone_from_pretrained_model(opts.use_pretrained_backbone)
+    if opts.freeze_backbone:
+        backbone.trainable = False
 else:
     backbone = create_backbone(
         img_hw=opts.img_hw,
@@ -81,15 +98,19 @@ else:
         include_vit_blocks=opts.include_vit_blocks,
         include_squeeze_excite=opts.include_squeeze_excite,
     )
-    print(backbone.summary())
-    feature_dim = backbone.output.shape[-1]
-    classifier = create_classifier_head(feature_dim, num_classes=len(classes_to_labels))
-    print(classifier.summary())
-    inp = backbone.input
-    y = backbone(inp)
-    y = classifier(y)
-    model = Model(inp, y)
-    print(model.summary())
+    if opts.freeze_backbone:
+        print("WARNING: freezing non pretrained backbone!", file=sys.stderr)
+
+print(backbone.summary())
+
+feature_dim = backbone.output.shape[-1]
+classifier = create_classifier(feature_dim, num_classes=len(classes_to_labels))
+print(classifier.summary())
+
+inp = backbone.input
+y = classifier(backbone(inp))
+model = Model(inp, y)
+print(model.summary())
 
 model.compile(
     optimizer=Adam(learning_rate=opts.learning_rate),

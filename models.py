@@ -1,7 +1,7 @@
 from typing import Tuple
 
 from tensorflow.keras.layers import *
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, load_model
 
 
 def conv_batchnorm_act_block(
@@ -143,7 +143,7 @@ def create_backbone(
     return Model(inps, y, name="backbone")
 
 
-def create_classifier_head(feature_dim: int, num_classes: int):
+def create_classifier(feature_dim: int, num_classes: int):
     inps = Input(shape=(feature_dim,))
     logits = mlp(
         inps,
@@ -153,11 +153,20 @@ def create_classifier_head(feature_dim: int, num_classes: int):
     return Model(inps, logits, name="classifier")
 
 
-def create_adapter_model(feature_dim: int, embedding_dim: int):
+def create_adapter(feature_dim: int, embedding_dim: int):
     inps = Input(shape=(feature_dim,))
     adapter = mlp(
         inps,
         dims=[feature_dim, embedding_dim],
         name="adapter",
     )
-    return Model(inps, logits, name="adapter")
+    return Model(inps, adapter, name="adapter")
+
+
+def load_backbone_from_pretrained_model(ckpt: str):
+    """ load the specified model and extract the 'backbone' """
+    model = load_model(ckpt)
+    for l in model.layers:
+        if l.name == 'backbone':
+            return l
+    raise Exception(f"no component named backbone found? ( found [{model.layers}] )")
