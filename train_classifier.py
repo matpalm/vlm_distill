@@ -9,6 +9,7 @@ import json, pickle
 from tensorflow.keras.losses import SparseCategoricalCrossentropy
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 from tensorflow.keras.layers import *
 
 from data import create_ds, ds_post_processing
@@ -38,7 +39,7 @@ parser.add_argument(
 parser.add_argument("--freeze-backbone", action="store_true")
 parser.add_argument("--base-num-filters", type=int, default=8)
 parser.add_argument("--max-num-filters", type=int, default=None)
-parser.add_argument("--learning-rate", type=float, default=0.1)
+parser.add_argument("--learning-rate", type=float, default=1e-2)
 parser.add_argument("--epochs", type=int, default=10)
 parser.add_argument("--batch-size", type=int, default=16)
 parser.add_argument("--include-vit-blocks", action="store_true")
@@ -119,8 +120,15 @@ model.compile(
 
 class_names = classes_to_labels.keys()
 callbacks = [
-    EvalCallback("train", train_ds, class_names, cb_freq=10),
-    EvalCallback("val", val_ds, class_names, cb_freq=10),
+    ModelCheckpoint(filepath=f"runs/{run}/ckpts/" + "e{epoch:03d}_{loss:0.5f}.keras"),
+    EvalCallback(
+        names=["train", "val"],
+        datasets=[train_ds, val_ds],
+        class_names=class_names,
+        report_dir=f"runs/{run}/evals/",
+        cb_freq=10,
+    ),
+    TensorBoard(log_dir=f"tb/{run}"),
 ]
 
 model.fit(train_ds, validation_data=val_ds, epochs=opts.epochs, callbacks=callbacks)

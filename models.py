@@ -1,4 +1,5 @@
 from typing import Tuple
+import os
 
 from tensorflow.keras.layers import *
 from tensorflow.keras.models import Model, load_model
@@ -41,7 +42,7 @@ def mlp(y, dims: int, name: str):
             y = Dense(
                 units=dims[i],
                 kernel_initializer="he_normal",
-                name=f"{name}_prj{i}",
+                name=f"{name}_dense{i}",
             )(y)
             y = BatchNormalization(name=f"{name}_bn{i}")(y)
             y = Activation("silu", name=f"{name}_act{i}")(y)
@@ -68,20 +69,30 @@ def projection_conv(filters, name):
     )
 
 
-def mobile_vit_block(y, prj_dim: int, name: str):
+def mobile_vit_block(y, key_dim: int, num_heads: int, name: str):
     inp = y
     feature_dim = y.shape[-1]
-    y = projection_conv(filters=prj_dim, name=f"{name}_prj1")(y)
+
+    # y = projection_conv(filters=prj_dim, name=f"{name}_prj1")(y)
+
     _b, h, w, f = y.shape
     y = Reshape((h * w, f), name=f"{name}_fold")(y)
-    y0 = LayerNormalization()(y)
-    y = MultiHeadAttention(key_dim=32, num_heads=4, name=f"{name}_mha")(y0, y0)
+
+    y0 = y
+    y = LayerNormalization(name=f"{name}_mha_ln")(y)
+    y = MultiHeadAttention(key_dim=key_dim, num_heads=num_heads, name=f"{name}_mha")(
+        y, y
+    )
     y = Add(name=f"{name}_mha_residual")([y0, y])
+
+    y0 = y
+    y = LayerNormalization(name=f"{name}_mlp_ln")(y)
+    y = mlp(y, dims=[feature_dim // 2, feature_dim], name=f"{name}_mlp")
+    y = Add(name=f"{name}_mlp_residual")([y0, y])
+
     y = Reshape((h, w, f), name=f"{name}_unfold")(y)
-    y0 = LayerNormalization()(y)
-    y = projection_conv(filters=feature_dim, name=f"{name}_prj2")(y)
-    y = Add(name=f"{name}_prj_residual")([y0, y])
-    return Add(name=f"{name}_residual")([inp, y])
+
+    return y
 
 
 def squeeze_excite_block(y, name: str, ratio=16):
@@ -133,7 +144,7 @@ def create_backbone(
 
     # ViT mixer
     if include_vit_blocks:
-        y = mobile_vit_block(y, prj_dim=num_filters // 2, name="vit")
+        y = mobile_vit_block(y, key_dim=32, num_heads=4, name="vit")
 
     # final ( post mixer ) conv
     y = conv_batchnorm_act_block(
@@ -165,6 +176,10 @@ def create_adapter(feature_dim: int, embedding_dim: int):
 
 def load_backbone_from_pretrained_model(ckpt: str):
     """ load the specified model and extract the 'backbone' """
+    if os.path.isdir(ckpt):
+        # ckpt dir was provided, load last (sorted)
+        ckpt += "/" + sorted(os.listdir(ckpt))[-1]
+        print("using latest ckpt", ckpt)
     model = load_model(ckpt)
     for l in model.layers:
         if l.name == 'backbone':

@@ -9,7 +9,7 @@ import json, pickle
 from tensorflow.keras.losses import MSE, SparseCategoricalCrossentropy
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 from tensorflow.keras.layers import *
 
 from data import create_ds, ds_post_processing
@@ -29,9 +29,9 @@ parser.add_argument("--img-hw", type=int, default=640)
 parser.add_argument("--base-num-filters", type=int, default=8)
 parser.add_argument("--max-num-filters", type=int, default=None)
 parser.add_argument("--embedding-type", type=str, default="clip_embed_img.npy")
-parser.add_argument("--learning-rate", type=float, default=0.1)
+parser.add_argument("--learning-rate", type=float, default=1e-3)
 parser.add_argument("--epochs", type=int, default=10)
-parser.add_argument("--batch-size", type=int, default=16)
+parser.add_argument("--batch-size", type=int, default=64)
 parser.add_argument("--include-vit-blocks", action="store_true")
 parser.add_argument("--include-squeeze-excite", action="store_true")
 opts = parser.parse_args()
@@ -51,15 +51,19 @@ train_ds = ds_post_processing(
 )
 print("|train_ds|", num_train, "classes_to_labels", classes_to_labels)
 
-val_ds, num_val, classes_to_labels = create_ds(
-    split=f"{opts.dataset}/test",
-    img_hw=opts.img_hw,
-    embedding_type=opts.embedding_type,
-    include_labels=False,
-    cache=True,
-)
-val_ds = ds_post_processing(val_ds, batch_size=10, shuffle=False, lr_flip=False)
-print("|val_ds|", num_val, classes_to_labels)
+try:
+    val_ds, num_val, classes_to_labels = create_ds(
+        split=f"{opts.dataset}/test",
+        img_hw=opts.img_hw,
+        embedding_type=opts.embedding_type,
+        include_labels=False,
+        cache=True,
+    )
+    val_ds = ds_post_processing(val_ds, batch_size=10, shuffle=False, lr_flip=False)
+    print("|val_ds|", num_val, classes_to_labels)
+except FileNotFoundError:
+    print(f"no validation data found at {opts.dataset}/test. not running test")
+    val_ds = None
 
 backbone = create_backbone(
     img_hw=opts.img_hw,
@@ -87,6 +91,7 @@ model.compile(
 )
 
 callbacks = [
-    ModelCheckpoint(filepath=f"runs/{run}/ckpts/" + "e{epoch:03d}_{loss:0.5f}.keras")
+    ModelCheckpoint(filepath=f"runs/{run}/ckpts/" + "e{epoch:03d}_{loss:0.5f}.keras"),
+    TensorBoard(log_dir=f"tb/{run}"),
 ]
 model.fit(train_ds, validation_data=val_ds, epochs=opts.epochs, callbacks=callbacks)
